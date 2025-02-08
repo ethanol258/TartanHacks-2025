@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Element Builder - Chemistry Learning Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f8ff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: #333;
+    }
+    h1 {
+      margin-bottom: 20px;
+      color: #2c3e50;
+    }
+    .game-container {
+      display: flex;
+      gap: 30px;
+      margin-top: 20px;
+      width: 100%;
+      max-width: 1200px;
+    }
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 200px;
+    }
+    button {
+      padding: 10px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      font-size: 14px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .atom-canvas {
+      width: 400px;
+      height: 400px;
+      border: 3px solid #333;
+      border-radius: 50%;
+      position: relative;
+      background-color: white;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .nucleus {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+    }
+    .proton {
+      background-color: #ff4444;
+    }
+    .neutron {
+      background-color: #4444ff;
+    }
+    /* Base electron style – only valence electrons are drawn individually */
+    .electron {
+      position: absolute;
+      transform-origin: center;
+    }
+    /* s orbital: a simple filled circle */
+    .s-orbital {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: #ffd700;
+      border: 1px solid #aaa;
+    }
+    /* p orbital: dumbbell shape (we show one lobe per electron to avoid overlap) */
+    .p-orbital {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #00bfff;
+    }
+    /* d orbital: a small four-leaf clover icon */
+    .d-orbital {
+      display: inline-block;
+      position: relative;
+      width: 20px;
+      height: 20px;
+    }
+    .d-orbital::before,
+    .d-orbital::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #8a2be2;
+    }
+    .d-orbital::before {
+      top: 0;
+      left: 0;
+    }
+    .d-orbital::after {
+      bottom: 0;
+      right: 0;
+    }
+    /* f orbital: a simplified 6-lobed icon */
+    .f-orbital {
+      display: inline-block;
+      position: relative;
+      width: 24px;
+      height: 24px;
+    }
+    .f-orbital div {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #ff69b4;
+    }
+    .f-orbital div:nth-child(1) { top: 0; left: 9px; }
+    .f-orbital div:nth-child(2) { top: 4px; right: 0; }
+    .f-orbital div:nth-child(3) { bottom: 4px; right: 0; }
+    .f-orbital div:nth-child(4) { bottom: 0; left: 9px; }
+    .f-orbital div:nth-child(5) { bottom: 4px; left: 0; }
+    .f-orbital div:nth-child(6) { top: 4px; left: 0; }
+    /* Outline for valence shell placeholders */
+    .valence-outline {
+      position: absolute;
+      border: 2px dashed #aaa;
+      border-radius: 50%;
+      pointer-events: none;
+      transition: opacity 0.5s;
+    }
+    /* Orbit animation for outer shell electrons */
+    @keyframes orbit {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    /* Spin animation for filled inner shells */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    /* Periodic table styling */
+    .periodic-table {
+      display: grid;
+      grid-template-columns: repeat(18, 40px);
+      gap: 4px;
+      margin-top: 20px;
+      background-color: #fff;
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 800px;
+    }
+    .element-cell {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #ccc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+      background-color: rgba(255,255,255,0.3);
+      transition: all 0.3s ease;
+      border-radius: 5px;
+    }
+    .element-cell.unlocked {
+      background-color: #98fb98;
+      transform: scale(1.1);
+      box-shadow: 0 0 8px rgba(0,255,0,0.5);
+    }
+    .info-panel,
+    .target-panel {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+    }
+    .info-panel h3,
+    .target-panel h3 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+    .info-panel p,
+    .target-panel p {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Element Builder - Chemistry Learning Game</h1>
+  <div class="game-container">
+    <div class="control-panel">
+      <!-- Addition Buttons -->
+      <button id="add-proton">Add Proton (+)</button>
+      <button id="add-neutron">Add Neutron (+)</button>
+      <button id="add-electron">Add Electron (+)</button>
+      <!-- Removal Buttons -->
+      <button id="remove-proton">Remove Proton (-)</button>
+      <button id="remove-neutron">Remove Neutron (-)</button>
+      <button id="remove-electron">Remove Electron (-)</button>
+      <div class="info-panel">
+        <h3>Current Atom:</h3>
+        <p>Protons: <span id="proton-count">1</span></p>
+        <p>Neutrons: <span id="neutron-count">0</span></p>
+        <p>Electrons: <span id="electron-count">1</span></p>
+        <p>Atomic Number: <span id="atomic-number">1</span></p>
+        <p>Atomic Mass: <span id="atomic-mass">1</span></p>
+        <p id="element-identity">Element: Hydrogen (H)</p>
+      </div>
+    </div>
+    <div class="atom-canvas" id="atom-canvas"></div>
+  </div>
+  <div class="target-panel">
+    <h3>Target Element:</h3>
+    <!-- Only show the target's name and symbol -->
+    <p id="target-element">Target: </p>
+  </div>
+  <h3>Periodic Table Progress:</h3>
+  <div class="periodic-table" id="periodic-table"></div>
+  <script>
+    // Define electron groups in filling order.
+    const electronGroups = [
+      { orbital: "1s", capacity: 2, type: "s" },
+      { orbital: "2s", capacity: 2, type: "s" },
+      { orbital: "2p", capacity: 6, type: "p" },
+      { orbital: "3s", capacity: 2, type: "s" },
+      { orbital: "3p", capacity: 6, type: "p" },
+      { orbital: "4s", capacity: 2, type: "s" },
+      { orbital: "3d", capacity: 10, type: "d" },
+      { orbital: "4p", capacity: 6, type: "p" },
+      { orbital: "5s", capacity: 2, type: "s" },
+      { orbital: "4d", capacity: 10, type: "d" },
+      { orbital: "5p", capacity: 6, type: "p" },
+      { orbital: "6s", capacity: 2, type: "s" },
+      { orbital: "4f", capacity: 14, type: "f" },
+      { orbital: "5d", capacity: 10, type: "d" },
+      { orbital: "6p", capacity: 6, type: "p" }
+      // etc.
+    ];
+    // Data for elements (only elements 1–18 defined for this game)
+    const elements = {
+      1: { symbol: 'H', name: 'Hydrogen', protons: 1, neutrons: 0, electrons: 1, additions: 5 },
+      2: { symbol: 'He', name: 'Helium', protons: 2, neutrons: 2, electrons: 2, additions: 5 },
+      3: { symbol: 'Li', name: 'Lithium', protons: 3, neutrons: 4, electrons: 3, additions: 7 },
+      4: { symbol: 'Be', name: 'Beryllium', protons: 4, neutrons: 5, electrons: 4, additions: 7 },
+      5: { symbol: 'B', name: 'Boron', protons: 5, neutrons: 6, electrons: 5, additions: 7 },
+      6: { symbol: 'C', name: 'Carbon', protons: 6, neutrons: 6, electrons: 6, additions: 7 },
+      7: { symbol: 'N', name: 'Nitrogen', protons: 7, neutrons: 7, electrons: 7, additions: 7 },
+      8: { symbol: 'O', name: 'Oxygen', protons: 8, neutrons: 8, electrons: 8, additions: 7 },
+      9: { symbol: 'F', name: 'Fluorine', protons: 9, neutrons: 10, electrons: 9, additions: 7 },
+      10: { symbol: 'Ne', name: 'Neon', protons: 10, neutrons: 10, electrons: 10, additions: 7 },
+      11: { symbol: 'Na', name: 'Sodium', protons: 11, neutrons: 12, electrons: 11, additions: 7 },
+      12: { symbol: 'Mg', name: 'Magnesium', protons: 12, neutrons: 12, electrons: 12, additions: 7 },
+      13: { symbol: 'Al', name: 'Aluminum', protons: 13, neutrons: 14, electrons: 13, additions: 7 },
+      14: { symbol: 'Si', name: 'Silicon', protons: 14, neutrons: 14, electrons: 14, additions: 7 },
+      15: { symbol: 'P', name: 'Phosphorus', protons: 15, neutrons: 16, electrons: 15, additions: 7 },
+      16: { symbol: 'S', name: 'Sulfur', protons: 16, neutrons: 16, electrons: 16, additions: 7 },
+      17: { symbol: 'Cl', name: 'Chlorine', protons: 17, neutrons: 18, electrons: 17, additions: 7 },
+      18: { symbol: 'Ar', name: 'Argon', protons: 18, neutrons: 22, electrons: 18, additions: 7 }
+      // More elements can be added as needed...
+    };
+    // Mapping for periodic table placement for elements 1–18.
+    const periodicTablePositions = {
+      1: { row: 1, col: 1 },
+      2: { row: 1, col: 18 },
+      3: { row: 2, col: 1 },
+      4: { row: 2, col: 2 },
+      5: { row: 2, col: 13 },
+      6: { row: 2, col: 14 },
+      7: { row: 2, col: 15 },
+      8: { row: 2, col: 16 },
+      9: { row: 2, col: 17 },
+      10: { row: 2, col: 18 },
+      11: { row: 3, col: 1 },
+      12: { row: 3, col: 2 },
+      13: { row: 3, col: 13 },
+      14: { row: 3, col: 14 },
+      15: { row: 3, col: 15 },
+      16: { row: 3, col: 16 },
+      17: { row: 3, col: 17 },
+      18: { row: 3, col: 18 }
+    };
+    // Initial atom is Hydrogen.
+    let currentAtom = { protons: 1, neutrons: 0, electrons: 1 };
+    let unlockedElements = new Set();
+    let targetElement = getRandomTargetElement();
+    const canvas = document.getElementById("atom-canvas");
+    const periodicTable = document.getElementById("periodic-table");
+    // Initialize periodic table.
+    for (let i = 1; i <= 118; i++) {
+      const cell = document.createElement("div");
+      cell.className = "element-cell";
+      cell.dataset.atomicNumber = i;
+      if (periodicTablePositions[i]) {
+        cell.style.gridRow = periodicTablePositions[i].row;
+        cell.style.gridColumn = periodicTablePositions[i].col;
+      }
+      periodicTable.appendChild(cell);
+    }
+    // Update periodic table cells.
+    function updatePeriodicTable() {
+      const cells = document.querySelectorAll(".element-cell");
+      cells.forEach(cell => {
+        const atomicNumber = parseInt(cell.dataset.atomicNumber);
+        if (elements[atomicNumber] && unlockedElements.has(atomicNumber)) {
+          cell.textContent = elements[atomicNumber].symbol;
+          cell.title = elements[atomicNumber].name;
+          cell.classList.add("unlocked");
+        } else {
+          cell.textContent = "";
+          cell.title = "";
+          cell.classList.remove("unlocked");
+        }
+      });
+    }
+    // Compute electron configuration from currentAtom.electrons.
+    function computeElectronConfiguration() {
+      let remaining = currentAtom.electrons;
+      const config = [];
+      for (let group of electronGroups) {
+        let count = Math.min(remaining, group.capacity);
+        config.push({ group, count });
+        remaining -= count;
+        if (remaining <= 0) break;
+      }
+      return config;
+    }
+    // Draw electron configuration.
+    // Fully filled inner groups (except the last) are drawn as summary shapes that remain stationary but rotate in place.
+    // The outer (valence) group is drawn as individually animated electrons orbiting the nucleus in a larger orbit.
+    function drawElectronConfiguration() {
+      const config = computeElectronConfiguration();
+      for (let i = 0; i < config.length - 1; i++) {
+        if (config[i].count === config[i].group.capacity) {
+          drawGroupSummary(i, config[i]);
+        }
+      }
+      const lastIndex = config.length - 1;
+      // Outer shell: make orbit radius larger than inner shells.
+      const orbitRadius = 70 + lastIndex * 40;
+      drawValenceElectrons(config[lastIndex].count, orbitRadius, config[lastIndex].group.capacity, config[lastIndex].group.orbital, config[lastIndex].group.type);
+    }
+    // Draw summary shape for a full inner group.
+    function drawGroupSummary(index, entry) {
+      const orbitRadius = 30 + index * 40;
+      const summary = document.createElement("div");
+      summary.style.position = "absolute";
+      summary.style.width = "40px";
+      summary.style.height = "40px";
+      const centerX = canvas.clientWidth / 2;
+      const centerY = canvas.clientHeight / 2;
+      summary.style.left = `${centerX - 20}px`;
+      summary.style.top = `${centerY - orbitRadius - 20}px`;
+      // Rotate in place (stationary position) using spin animation.
+      summary.style.animation = "spin 20s linear infinite";
+      summary.style.transformOrigin = "center";
+      if (entry.group.type === "s") {
+        summary.innerHTML = `<div style="width:40px; height:40px; border-radius:50%; background:#ffd700; display:flex; justify-content:center; align-items:center; font-size:10px;">${entry.group.orbital}${entry.count}</div>`;
+      } else if (entry.group.type === "p") {
+        summary.innerHTML = `<div class="p-orbital">
+          <div class="lobe left" style="position:absolute; left:0; top:2px; width:16px; height:16px; border-radius:50%; background:#00bfff;"></div>
+          <div class="lobe right" style="position:absolute; right:0; top:2px; width:16px; height:16px; border-radius:50%; background:#00bfff;"></div>
+          <div class="connector" style="position:absolute; top:8px; left:16px; width:8px; height:4px; background:#00bfff;"></div>
+          <div style="position:absolute; bottom:0; width:100%; text-align:center; font-size:8px;">${entry.group.orbital}${entry.count}</div>
+        </div>`;
+      } else if (entry.group.type === "d") {
+        summary.innerHTML = `<div class="d-orbital">
+          <div class="lobe top-left" style="position:absolute; top:0; left:0; width:14px; height:14px; border-radius:50%; background:#8a2be2;"></div>
+          <div class="lobe top-right" style="position:absolute; top:0; right:0; width:14px; height:14px; border-radius:50%; background:#8a2be2;"></div>
+          <div class="lobe bottom-left" style="position:absolute; bottom:0; left:0; width:14px; height:14px; border-radius:50%; background:#8a2be2;"></div>
+          <div class="lobe bottom-right" style="position:absolute; bottom:0; right:0; width:14px; height:14px; border-radius:50%; background:#8a2be2;"></div>
+          <div style="position:absolute; bottom:0; width:100%; text-align:center; font-size:8px;">${entry.group.orbital}${entry.count}</div>
+        </div>`;
+      } else if (entry.group.type === "f") {
+        summary.innerHTML = `<div class="f-orbital">
+          <div></div><div></div><div></div><div></div><div></div><div></div>
+          <div style="position:absolute; bottom:0; width:100%; text-align:center; font-size:8px;">${entry.group.orbital}${entry.count}</div>
+        </div>`;
+      }
+      canvas.appendChild(summary);
+    }
+    // Draw outer (valence) electrons.
+    // Create a container that orbits the nucleus.
+    function drawValenceElectrons(count, shellRadius, capacity, orbitalLabel, orbitalType) {
+      const outerContainer = document.createElement("div");
+      outerContainer.style.position = "absolute";
+      outerContainer.style.left = "50%";
+      outerContainer.style.top = "50%";
+      outerContainer.style.width = "0";
+      outerContainer.style.height = "0";
+      outerContainer.style.transformOrigin = "0 0";
+      // Slow orbit animation for the valence shell.
+      outerContainer.style.animation = "orbit 20s linear infinite";
+      // Draw dotted outline for the valence shell.
+      const outline = document.createElement("div");
+      outline.className = "valence-outline";
+      outline.style.width = `${shellRadius * 2}px`;
+      outline.style.height = `${shellRadius * 2}px`;
+      outline.style.left = `-${shellRadius}px`;
+      outline.style.top = `-${shellRadius}px`;
+      outline.style.opacity = (count >= capacity) ? "0" : "1";
+      outerContainer.appendChild(outline);
+      // Calculate positions for each slot.
+      const positions = [];
+      for (let i = 0; i < capacity; i++) {
+        positions.push(90 + i * (360 / capacity));
+      }
+      // For each slot, add an electron or a placeholder.
+      positions.forEach((angle, i) => {
+        const electronDiv = document.createElement("div");
+        electronDiv.style.position = "absolute";
+        electronDiv.style.left = "0";
+        electronDiv.style.top = "0";
+        electronDiv.style.transform = `rotate(${angle}deg) translate(${shellRadius}px) rotate(-${angle}deg)`;
+        // Each valence electron or placeholder remains distinct.
+        electronDiv.style.animation = "orbit 20s linear infinite";
+        if (i < count) {
+          if (orbitalType === "s") {
+            electronDiv.className = "electron s-orbital";
+          } else if (orbitalType === "p") {
+            electronDiv.innerHTML = `<div class="p-orbital" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#00bfff;"></div>`;
+          } else if (orbitalType === "d") {
+            electronDiv.innerHTML = `<div class="d-orbital" style="display:inline-block; position:relative; width:20px; height:20px;">
+              <div style="position:absolute; top:0; left:0; width:8px; height:8px; border-radius:50%; background:#8a2be2;"></div>
+              <div style="position:absolute; top:0; right:0; width:8px; height:8px; border-radius:50%; background:#8a2be2;"></div>
+              <div style="position:absolute; bottom:0; left:0; width:8px; height:8px; border-radius:50%; background:#8a2be2;"></div>
+              <div style="position:absolute; bottom:0; right:0; width:8px; height:8px; border-radius:50%; background:#8a2be2;"></div>
+            </div>`;
+          } else if (orbitalType === "f") {
+            electronDiv.innerHTML = `<div class="f-orbital" style="display:inline-block; position:relative; width:24px; height:24px;">
+              <div></div><div></div><div></div><div></div><div></div><div></div>
+            </div>`;
+          }
+        } else {
+          electronDiv.className = "electron placeholder-electron";
+        }
+        outerContainer.appendChild(electronDiv);
+      });
+      // Optional label for the valence shell.
+      const label = document.createElement("div");
+      label.style.position = "absolute";
+      label.style.fontSize = "10px";
+      label.style.color = "#333";
+      label.style.left = `${shellRadius}px`;
+      label.style.top = `-${shellRadius}px`;
+      label.textContent = `${orbitalLabel}${count}`;
+      outerContainer.appendChild(label);
+      canvas.appendChild(outerContainer);
+    }
+    // Update the atom display: draw nucleus and electron configuration.
+    function updateAtomDisplay() {
+      canvas.innerHTML = "";
+      const nucleusSize = 20 + (currentAtom.protons + currentAtom.neutrons) * 2;
+      const nucleus = document.createElement("div");
+      nucleus.className = "nucleus proton";
+      nucleus.style.width = `${nucleusSize}px`;
+      nucleus.style.height = `${nucleusSize}px`;
+      nucleus.style.left = "50%";
+      nucleus.style.top = "50%";
+      canvas.appendChild(nucleus);
+      drawElectronConfiguration();
+      document.getElementById("proton-count").textContent = currentAtom.protons;
+      document.getElementById("neutron-count").textContent = currentAtom.neutrons;
+      document.getElementById("electron-count").textContent = currentAtom.electrons;
+      document.getElementById("atomic-number").textContent = currentAtom.protons;
+      document.getElementById("atomic-mass").textContent = currentAtom.protons + currentAtom.neutrons;
+      const targetData = elements[targetElement];
+      if (
+        currentAtom.protons === targetData.protons &&
+        currentAtom.neutrons === targetData.neutrons &&
+        currentAtom.electrons === targetData.electrons
+      ) {
+        alert(`Congratulations! You've created ${targetData.name}.`);
+        unlockElement(targetElement);
+        startNewRound();
+      }
+    }
+    // Unlock an element.
+    function unlockElement(atomicNumber) {
+      unlockedElements.add(atomicNumber);
+      const element = elements[atomicNumber];
+      const cells = document.querySelectorAll(`.element-cell[data-atomic-number="${atomicNumber}"]`);
+      cells.forEach(cell => {
+        cell.textContent = element.symbol;
+        cell.title = element.name;
+        cell.classList.add("unlocked");
+      });
+      document.getElementById("element-identity").textContent = `Element: ${element.name} (${element.symbol})`;
+      updatePeriodicTable();
+    }
+    // Start a new round with a new target.
+    function startNewRound() {
+      targetElement = getRandomTargetElement();
+      document.getElementById("target-element").textContent =
+        `Target: ${elements[targetElement].name} (${elements[targetElement].symbol})`;
+      updateAtomDisplay();
+    }
+    // Get a random target element (not Hydrogen).
+    function getRandomTargetElement() {
+      const available = Object.keys(elements).map(Number);
+      let random = available[Math.floor(Math.random() * available.length)];
+      while (random === 1) {
+        random = available[Math.floor(Math.random() * available.length)];
+      }
+      return random;
+    }
+    // Event listeners.
+    document.getElementById("add-proton").addEventListener("click", () => {
+      currentAtom.protons++;
+      updateAtomDisplay();
+    });
+    document.getElementById("add-neutron").addEventListener("click", () => {
+      currentAtom.neutrons++;
+      updateAtomDisplay();
+    });
+    document.getElementById("add-electron").addEventListener("click", () => {
+      currentAtom.electrons++;
+      updateAtomDisplay();
+    });
+    document.getElementById("remove-proton").addEventListener("click", () => {
+      if (currentAtom.protons > 0) {
+        currentAtom.protons--;
+        updateAtomDisplay();
+      }
+    });
+    document.getElementById("remove-neutron").addEventListener("click", () => {
+      if (currentAtom.neutrons > 0) {
+        currentAtom.neutrons--;
+        updateAtomDisplay();
+      }
+    });
+    document.getElementById("remove-electron").addEventListener("click", () => {
+      if (currentAtom.electrons > 0) {
+        currentAtom.electrons--;
+        updateAtomDisplay();
+      }
+    });
+    // Initial setup.
+    document.getElementById("target-element").textContent =
+      `Target: ${elements[targetElement].name} (${elements[targetElement].symbol})`;
+    updateAtomDisplay();
+  </script>
+</body>
+</html>
